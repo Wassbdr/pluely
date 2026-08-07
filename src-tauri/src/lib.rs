@@ -6,7 +6,7 @@ mod db;
 mod shortcuts;
 mod window;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use tauri_plugin_posthog::{init as posthog_init, PostHogConfig, PostHogOptions};
 use tokio::task::JoinHandle;
 mod speaker;
@@ -34,6 +34,24 @@ pub fn run() {
     // Get PostHog API key
     let posthog_api_key = option_env!("POSTHOG_API_KEY").unwrap_or("").to_string();
     let mut builder = tauri::Builder::default()
+        // Must be registered first: a second launch reveals the running instance
+        // instead of starting a rival that cannot claim the global shortcuts.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                {
+                    let state = app.state::<shortcuts::WindowVisibility>();
+                    // Named binding, not a temporary: the guard must drop before `state`.
+                    let locked = state.is_hidden.lock();
+                    if let Ok(mut is_hidden) = locked {
+                        *is_hidden = false;
+                    }
+                }
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+                let _ = window.emit("focus-text-input", serde_json::json!({}));
+            }
+        }))
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:pluely.db", db::migrations())

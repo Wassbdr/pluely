@@ -16,9 +16,9 @@ export const DEFAULT_SHORTCUT_ACTIONS: ShortcutAction[] = [
     name: "Toggle Window",
     description: "Show/Hide the main window",
     defaultKey: {
-      macos: "cmd+backslash",
-      windows: "ctrl+backslash",
-      linux: "ctrl+backslash",
+      macos: "cmd+shift+l",
+      windows: "ctrl+shift+l",
+      linux: "ctrl+shift+l",
     },
   },
   {
@@ -69,6 +69,26 @@ export const DEFAULT_SHORTCUT_ACTIONS: ShortcutAction[] = [
       macos: "cmd+shift+s",
       windows: "ctrl+shift+s",
       linux: "ctrl+shift+s",
+    },
+  },
+  {
+    id: "toggle_conversation",
+    name: "Toggle Conversation",
+    description: "Lock/unlock the current conversation panel below the bar (type while it stays open)",
+    defaultKey: {
+      macos: "cmd+shift+k",
+      windows: "ctrl+shift+k",
+      linux: "ctrl+shift+k",
+    },
+  },
+  {
+    id: "quit_app",
+    name: "Quit Pluely",
+    description: "Quit the app immediately (no menu needed)",
+    defaultKey: {
+      macos: "cmd+shift+v",
+      windows: "ctrl+shift+v",
+      linux: "ctrl+shift+v",
     },
   },
 ];

@@ -40,6 +40,13 @@ export const RESPONSE_LENGTHS: ResponseLengthOption[] = [
 
 export const LANGUAGES: LanguageOption[] = [
   {
+    id: "french_or_english",
+    name: "Français / English (auto)",
+    flag: "🇫🇷🇬🇧",
+    prompt:
+      "Respond in French if the input is in French, in English if the input is in English. Never respond in any other language.",
+  },
+  {
     id: "english",
     name: "English",
     flag: "🇺🇸",
@@ -216,5 +223,5 @@ export const LANGUAGES: LanguageOption[] = [
 ];
 
 export const DEFAULT_RESPONSE_LENGTH = "auto";
-export const DEFAULT_LANGUAGE = "english";
+export const DEFAULT_LANGUAGE = "french_or_english";
 export const DEFAULT_AUTO_SCROLL = true;

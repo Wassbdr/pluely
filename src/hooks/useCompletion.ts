@@ -76,6 +76,34 @@ export const useCompletion = () => {
   const [messageHistoryOpen, setMessageHistoryOpen] = useState(false);
   const [isFilesPopoverOpen, setIsFilesPopoverOpen] = useState(false);
   const [isScreenshotLoading, setIsScreenshotLoading] = useState(false);
+
+  // Wire the "toggle_conversation" and "freeze_cursor" global shortcuts.
+  // Listen to the Tauri event directly rather than going through
+  // registerCustomShortcutCallback — that callback map is unused elsewhere.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+
+    listen<{ action: string }>("custom-shortcut-triggered", (event) => {
+      const action = event.payload?.action;
+      console.log("[pluely] custom shortcut received:", action);
+      if (action === "toggle_conversation") {
+        setMessageHistoryOpen((prev) => !prev);
+      } else if (action === "quit_app") {
+        invoke("exit_app").catch((e) =>
+          console.error("Failed to quit app:", e)
+        );
+      }
+    }).then((fn) => {
+      if (disposed) fn();
+      else unlisten = fn;
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
   const [keepEngaged, setKeepEngaged] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isProcessingScreenshotRef = useRef(false);

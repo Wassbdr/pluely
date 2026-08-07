@@ -44,7 +44,9 @@ impl Default for LicenseState {
 
 impl LicenseState {
     pub fn is_active(&self) -> bool {
-        self.has_active_license.load(Ordering::Relaxed)
+        // Free build: every license-gated feature is unlocked.
+        let _ = self.has_active_license.load(Ordering::Relaxed);
+        true
     }
 
     pub fn set_active(&self, active: bool) {

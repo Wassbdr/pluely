@@ -131,7 +131,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [customizable, setCustomizable] = useState<CustomizableState>(
     DEFAULT_CUSTOMIZABLE_STATE
   );
-  const [hasActiveLicense, setHasActiveLicense] = useState<boolean>(false);
+  // App is free: all features unlocked, no license required.
+  const [hasActiveLicense, setHasActiveLicense] = useState<boolean>(true);
   const [supportsImages, setSupportsImagesState] = useState<boolean>(() => {
     const stored = safeLocalStorage.getItem(STORAGE_KEYS.SUPPORTS_IMAGES);
     return stored === null ? true : stored === "true";
@@ -149,9 +150,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const getActiveLicenseStatus = async () => {
+    // Free build: always unlocked regardless of any license check.
     const response: { is_active: boolean; is_dev_license: boolean } =
       await invoke("validate_license_api");
-    setHasActiveLicense(response.is_active);
+    setHasActiveLicense(true);
 
     if (response?.is_dev_license) {
       setPluelyApiEnabled(false);
