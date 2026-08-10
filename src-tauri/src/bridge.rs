@@ -6,6 +6,7 @@
 //! and make sure it does not outlive the app.
 
 use std::net::{SocketAddr, TcpStream};
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -31,6 +32,19 @@ pub struct BridgeState {
 fn port_in_use() -> bool {
     let addr: SocketAddr = ([127, 0, 0, 1], BRIDGE_PORT).into();
     TcpStream::connect_timeout(&addr, Duration::from_millis(300)).is_ok()
+}
+
+/// Renders a path in the plain form Node understands.
+///
+/// Tauri resolves Windows resources to verbatim paths (`\\?\C:\...`). Node
+/// cannot use one as a script path: it parses the prefix away, is left with
+/// `C:`, and exits with `EISDIR: illegal operation on a directory`.
+fn plain_path(path: &Path) -> String {
+    let rendered = path.to_string_lossy().to_string();
+    match rendered.strip_prefix(r"\\?\") {
+        Some(stripped) => stripped.to_string(),
+        None => rendered,
+    }
 }
 
 /// Starts the bridge if it is not already running.
@@ -59,7 +73,7 @@ pub fn start(app: &AppHandle) {
     let spawned = app
         .shell()
         .command("node")
-        .args([script.to_string_lossy().to_string()])
+        .args([plain_path(&script)])
         .env("PLUELY_BRIDGE_PORT", BRIDGE_PORT.to_string())
         .env("PLUELY_BRIDGE_EXIT_ON_STDIN_CLOSE", "1")
         .spawn();
