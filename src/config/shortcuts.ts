@@ -17,8 +17,8 @@ export const DEFAULT_SHORTCUT_ACTIONS: ShortcutAction[] = [
     description: "Show/Hide the main window",
     defaultKey: {
       macos: "cmd+backslash",
-      windows: "ctrl+backslash",
-      linux: "ctrl+backslash",
+      windows: "ctrl+shift+l",
+      linux: "ctrl+shift+l",
     },
   },
   {
