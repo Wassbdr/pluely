@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod activate;
 mod api;
+mod bridge;
 mod capture;
 mod db;
 mod shortcuts;
@@ -41,6 +42,7 @@ pub fn run() {
         )
         .manage(AudioState::default())
         .manage(CaptureState::default())
+        .manage(bridge::BridgeState::default())
         .manage(shortcuts::WindowVisibility {
             is_hidden: Mutex::new(false),
         })
@@ -119,6 +121,9 @@ pub fn run() {
         .setup(|app| {
             // Setup main window positioning
             window::setup_main_window(app).expect("Failed to setup main window");
+
+            // Local Claude Code bridge; failures are logged, never fatal.
+            bridge::start(app.handle());
             #[cfg(target_os = "macos")]
             init(app.app_handle());
             let app_handle = app.handle();
@@ -206,8 +211,13 @@ pub fn run() {
     }
 
     builder
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                bridge::stop(app_handle);
+            }
+        });
 }
 
 #[cfg(target_os = "macos")]
