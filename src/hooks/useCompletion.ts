@@ -14,6 +14,10 @@ import {
   generateMessageId,
   generateRequestId,
   getResponseSettings,
+  getSharedHistory,
+  appendSharedTurn,
+  resetSharedConversation,
+  setSharedHistory,
 } from "@/lib";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -189,11 +193,9 @@ export const useCompletion = () => {
       const signal = abortControllerRef.current.signal;
 
       try {
-        // Prepare message history for the AI
-        const messageHistory = state.conversationHistory.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        }));
+        // The shared thread rather than this hook's own history, so a typed
+        // question also sees what active listening has picked up.
+        const messageHistory = getSharedHistory();
 
         // Handle image attachments
         const imagesBase64: string[] = [];
@@ -363,6 +365,15 @@ export const useCompletion = () => {
   // are now imported from lib/database/chat-history.action.ts
 
   const loadConversation = useCallback((conversation: ChatConversation) => {
+    // Reopening a past conversation makes it the live thread, so the mic and
+    // screenshots continue that subject instead of the one just abandoned.
+    setSharedHistory(
+      conversation.messages
+        .filter((m): m is typeof m & { role: "user" | "assistant" } =>
+          m.role === "user" || m.role === "assistant"
+        )
+        .map((m) => ({ role: m.role, content: m.content }))
+    );
     setState((prev) => ({
       ...prev,
       currentConversationId: conversation.id,
@@ -375,6 +386,9 @@ export const useCompletion = () => {
   }, []);
 
   const startNewConversation = useCallback(() => {
+    // Explicit "new conversation": clears the shared thread too, so the mic
+    // does not keep replaying the previous subject.
+    resetSharedConversation();
     setState((prev) => ({
       ...prev,
       currentConversationId: null,
@@ -416,6 +430,8 @@ export const useCompletion = () => {
         content: assistantResponse,
         timestamp: timestamp + MESSAGE_ID_OFFSET,
       };
+
+      appendSharedTurn(userMessage, assistantResponse);
 
       const newMessages = [...state.conversationHistory, userMsg, assistantMsg];
 
@@ -602,11 +618,9 @@ export const useCompletion = () => {
           const signal = abortControllerRef.current.signal;
 
           try {
-            // Prepare message history for the AI
-            const messageHistory = state.conversationHistory.map((msg) => ({
-              role: msg.role,
-              content: msg.content,
-            }));
+            // Same shared thread as the typed path: a screenshot lands in the
+            // conversation already under way, not in a fresh one.
+            const messageHistory = getSharedHistory();
 
             let fullResponse = "";
 

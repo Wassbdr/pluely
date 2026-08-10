@@ -17,6 +17,9 @@ import {
   CONVERSATION_SAVE_DEBOUNCE_MS,
   generateConversationId,
   generateMessageId,
+  getSharedHistory,
+  appendSharedTurn,
+  resetSharedConversation,
 } from "@/lib";
 import { Message } from "@/types/completion";
 
@@ -280,9 +283,9 @@ export function useSystemAudio() {
                   ? systemPrompt || DEFAULT_SYSTEM_PROMPT
                   : contextContent || DEFAULT_SYSTEM_PROMPT;
 
-                const previousMessages = conversation.messages.map((msg) => {
-                  return { role: msg.role, content: msg.content };
-                });
+                // The shared thread, so a heard question also sees what was
+                // typed or screenshotted since — not just this listening session.
+                const previousMessages = getSharedHistory();
 
                 await processWithAI(
                   transcription,
@@ -519,6 +522,7 @@ export function useSystemAudio() {
 
         if (fullResponse) {
           const timestamp = Date.now();
+          appendSharedTurn(transcription, fullResponse);
           setConversation((prev) => ({
             ...prev,
             messages: [
@@ -563,7 +567,9 @@ export function useSystemAudio() {
 
       const isContinuous = !vadConfig.enabled;
 
-      // Set up conversation
+      // A new listening session gets its own saved conversation, but the shared
+      // thread is deliberately left alone: stopping and restarting the mic is a
+      // pause in one interview, not the start of a new subject.
       const conversationId = generateConversationId("sysaudio");
       setConversation({
         id: conversationId,
@@ -764,6 +770,8 @@ export function useSystemAudio() {
   ]);
 
   const startNewConversation = useCallback(() => {
+    // Explicit "new conversation": here the shared thread does get cleared.
+    resetSharedConversation();
     setConversation({
       id: generateConversationId("sysaudio"),
       title: "",
