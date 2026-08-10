@@ -168,6 +168,12 @@ function spawnClaude({ system, stdin, model }) {
     } catch {}
   };
 
+  // The MCP config goes through a file rather than inline JSON: cmd.exe strips
+  // the quotes from `{"mcpServers":{}}`, and Claude then reads the mangled
+  // `{mcpServers:{}}` as a (missing) file path.
+  const mcpFile = join(dir, "mcp.json");
+  writeFileSync(mcpFile, '{"mcpServers":{}}', "utf8");
+
   const args = [
     "-p",
     "--input-format", "stream-json",
@@ -176,7 +182,7 @@ function spawnClaude({ system, stdin, model }) {
     "--include-partial-messages",
     "--model", model,
     "--strict-mcp-config",
-    "--mcp-config", '{"mcpServers":{}}',
+    "--mcp-config", mcpFile,
     "--disallowed-tools", DISALLOWED_TOOLS,
   ];
 
