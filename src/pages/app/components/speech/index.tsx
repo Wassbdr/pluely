@@ -38,6 +38,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
     setupRequired,
     startCapture,
     stopCapture,
+    togglePanel,
     isPopoverOpen,
     setIsPopoverOpen,
     useSystemPrompt,
@@ -57,6 +58,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
     handleQuickActionClick,
     vadConfig,
     updateVadConfiguration,
+    isContinuousMode,
     isRecordingInContinuousMode,
     recordingProgress,
     manualStopAndSend,
@@ -100,13 +102,30 @@ export const SystemAudio = (props: useSystemAudioType) => {
     }
   }, [isProcessing, screenshotImage]);
 
-  const handleToggleCapture = async () => {
-    if (capturing) {
-      await stopCapture();
-    } else {
+  /**
+   * The listen / pause / stop control inside the panel.
+   *
+   * In continuous mode "pause" is `manualStopAndSend`: it ends the take, sends
+   * it for transcription and an answer, and leaves the mic idle — pausing is
+   * how you ask, not how you cancel.
+   */
+  const handleListenControl = async () => {
+    if (!capturing) {
       await startCapture();
+      return;
     }
+    if (isContinuousMode && isRecordingInContinuousMode) {
+      await manualStopAndSend();
+      return;
+    }
+    await stopCapture();
   };
+
+  const listenControlLabel = !capturing
+    ? "Écouter"
+    : isContinuousMode && isRecordingInContinuousMode
+    ? "Pause et envoyer"
+    : "Arrêter l'écoute";
 
   const handleModeChange = (vadEnabled: boolean) => {
     updateVadConfiguration({
@@ -168,8 +187,8 @@ export const SystemAudio = (props: useSystemAudioType) => {
     if (setupRequired) return "Setup required - Click for instructions";
     if (error && !setupRequired) return `Error: ${error}`;
     if (isProcessing) return "Transcribing audio...";
-    if (capturing) return "Stop system audio capture";
-    return "Start system audio capture";
+    if (capturing) return "Listening — open the panel";
+    return "Open the listening panel";
   };
 
   return (
@@ -186,7 +205,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
         <Button
           size="icon"
           title={getButtonTitle()}
-          onClick={handleToggleCapture}
+          onClick={togglePanel}
           className={cn(
             capturing && "bg-green-50 hover:bg-green-100",
             error && "bg-red-100 hover:bg-red-200"
@@ -196,7 +215,7 @@ export const SystemAudio = (props: useSystemAudioType) => {
         </Button>
       </PopoverTrigger>
 
-      {(capturing || setupRequired || error) && (
+      {isPopoverOpen && (
         <PopoverContent
           align="end"
           side="bottom"
@@ -225,6 +244,29 @@ export const SystemAudio = (props: useSystemAudioType) => {
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Listen / pause: opening the panel never starts the mic,
+                      so this is the only way in. */}
+                  {!setupRequired && (
+                    <Button
+                      size="sm"
+                      variant={capturing ? "default" : "outline"}
+                      onClick={handleListenControl}
+                      disabled={isProcessing || isAIProcessing}
+                      className={cn(
+                        "h-6 text-[10px] gap-1 px-2",
+                        capturing && "bg-green-600 text-white hover:bg-green-700"
+                      )}
+                      title={listenControlLabel}
+                    >
+                      {capturing ? (
+                        <AudioLinesIcon className="w-3 h-3" />
+                      ) : (
+                        <HeadphonesIcon className="w-3 h-3" />
+                      )}
+                      {listenControlLabel}
+                    </Button>
+                  )}
+
                   {/* Screenshot Button */}
                   {hasActiveLicense && !setupRequired && supportsImages && (
                     <Button

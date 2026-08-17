@@ -632,13 +632,27 @@ export function useSystemAudio() {
       setLastTranscription("");
       setLastAIResponse("");
       setError("");
-      setIsPopoverOpen(false);
+      // The panel deliberately stays open: stopping the mic returns to the
+      // menu, ready to listen again, rather than dismissing everything.
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       setError(`Failed to stop capture: ${errorMessage}`);
       console.error("Stop capture error:", err);
     }
   }, []);
+
+  /**
+   * Opens the panel, or closes it when nothing is under way. This is what the
+   * bar button and the shortcut trigger — listening then takes a second,
+   * explicit action from inside the panel.
+   */
+  const togglePanel = useCallback(() => {
+    setIsPopoverOpen((open) => {
+      if (!open) return true;
+      const busy = capturing || isProcessing || isAIProcessing || setupRequired;
+      return busy ? true : false;
+    });
+  }, [capturing, isProcessing, isAIProcessing, setupRequired]);
 
   // Manual stop for continuous recording
   const manualStopAndSend = useCallback(async () => {
@@ -686,33 +700,28 @@ export function useSystemAudio() {
     }
   }, [startCapture]);
 
+  // The panel is opened by the user, not by the microphone: it has to be
+  // possible to read the conversation without starting to listen. Work in
+  // progress can still force it open, so nothing runs behind a closed panel.
   useEffect(() => {
-    const shouldOpenPopover =
-      capturing ||
-      setupRequired ||
-      isAIProcessing ||
-      !!lastAIResponse ||
-      !!error;
-    setIsPopoverOpen(shouldOpenPopover);
-    resizeWindow(shouldOpenPopover);
-  }, [
-    capturing,
-    setupRequired,
-    isAIProcessing,
-    lastAIResponse,
-    error,
-    resizeWindow,
-  ]);
+    const mustStayOpen =
+      capturing || setupRequired || isAIProcessing || isProcessing || !!error;
+    if (mustStayOpen) {
+      setIsPopoverOpen(true);
+    }
+  }, [capturing, setupRequired, isAIProcessing, isProcessing, error]);
 
   useEffect(() => {
+    resizeWindow(isPopoverOpen);
+  }, [isPopoverOpen, resizeWindow]);
+
+  useEffect(() => {
+    // Opens the panel rather than the microphone: listening is always a
+    // deliberate second action.
     globalShortcuts.registerSystemAudioCallback(async () => {
-      if (capturing) {
-        await stopCapture();
-      } else {
-        await startCapture();
-      }
+      togglePanel();
     });
-  }, [startCapture, stopCapture]);
+  }, [togglePanel]);
 
   useEffect(() => {
     return () => {
@@ -896,6 +905,7 @@ export function useSystemAudio() {
     setupRequired,
     startCapture,
     stopCapture,
+    togglePanel,
     handleSetup,
     isPopoverOpen,
     setIsPopoverOpen,
