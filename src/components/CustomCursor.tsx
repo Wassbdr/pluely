@@ -16,43 +16,54 @@ export const CustomCursor = () => {
       rafId = requestAnimationFrame(updateCursorPosition);
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
-      positionRef.current = { x: e.clientX, y: e.clientY };
-
-      if (!isVisibleRef.current) {
-        isVisibleRef.current = true;
-        if (cursorRef.current) {
-          cursorRef.current.style.opacity = "1";
-        }
+    const show = (x: number, y: number) => {
+      positionRef.current = { x, y };
+      if (isVisibleRef.current) return;
+      isVisibleRef.current = true;
+      if (cursorRef.current) {
+        // Move before revealing, so it never flashes at a stale position.
+        cursorRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        cursorRef.current.style.opacity = "1";
       }
     };
 
-    const handleMouseLeave = () => {
+    const hide = () => {
       isVisibleRef.current = false;
       if (cursorRef.current) {
         cursorRef.current.style.opacity = "0";
       }
     };
 
-    const handleWindowBlur = () => {
-      isVisibleRef.current = false;
-      if (cursorRef.current) {
-        cursorRef.current.style.display = "0";
-      }
+    const handleMove = (e: MouseEvent | PointerEvent) => {
+      show(e.clientX, e.clientY);
+    };
+
+    // The real cursor is hidden by CSS the moment the pointer crosses into the
+    // window, so waiting for a move event would leave no pointer at all.
+    // Revealing on entry closes that gap — and pointer events reach an
+    // unfocused overlay (focus: false) more reliably than legacy mouse ones.
+    const handleEnter = (e: PointerEvent) => {
+      show(e.clientX, e.clientY);
     };
 
     // Start the animation loop
     rafId = requestAnimationFrame(updateCursorPosition);
 
     // Add event listeners
-    document.addEventListener("mousemove", handleMouseMove, { passive: true });
-    document.addEventListener("mouseleave", handleMouseLeave);
-    window.addEventListener("blur", handleWindowBlur);
+    document.addEventListener("pointerover", handleEnter, { passive: true });
+    document.addEventListener("pointermove", handleMove, { passive: true });
+    document.addEventListener("mousemove", handleMove, { passive: true });
+    document.addEventListener("pointerleave", hide);
+    document.addEventListener("mouseleave", hide);
+    window.addEventListener("blur", hide);
 
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseleave", handleMouseLeave);
-      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("pointerover", handleEnter);
+      document.removeEventListener("pointermove", handleMove);
+      document.removeEventListener("mousemove", handleMove);
+      document.removeEventListener("pointerleave", hide);
+      document.removeEventListener("mouseleave", hide);
+      window.removeEventListener("blur", hide);
       cancelAnimationFrame(rafId);
     };
   }, []);
