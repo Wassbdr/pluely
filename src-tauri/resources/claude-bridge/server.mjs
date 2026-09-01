@@ -13,8 +13,8 @@
 
 import http from "node:http";
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 const PORT = Number(process.env.PLUELY_BRIDGE_PORT) || 8787;
@@ -33,6 +33,76 @@ const DISALLOWED_TOOLS = [
   "ReportFindings", "ScheduleWakeup", "SendMessage", "Skill", "TaskOutput",
   "TaskStop", "TodoWrite", "ToolSearch", "WebFetch", "WebSearch", "Write",
 ].join(",");
+
+/**
+ * Personal reference material handed to the model on every request — a CV, an
+ * interview prep sheet, locked figures it must not contradict.
+ *
+ * It lives outside the repository on purpose: this is personal data (contact
+ * details, salary strategy, private project names) and nothing here should end
+ * up in a commit.
+ */
+const CONTEXT_DIR =
+  process.env.PLUELY_CONTEXT_DIR || join(homedir(), ".pluely", "context");
+
+const CONTEXT_EXTENSIONS = [".md", ".txt"];
+
+let contextCache = { signature: "", text: "", files: [], bytes: 0 };
+
+/**
+ * Loads the context files, re-reading only when one actually changed.
+ *
+ * The output has to be byte-identical between requests or Claude's prompt cache
+ * misses and every question pays full price for ~20k tokens. Hence the sorted
+ * order and the mtime+size signature rather than a re-read each time.
+ */
+function loadContext() {
+  let entries;
+  try {
+    entries = readdirSync(CONTEXT_DIR)
+      .filter((name) => CONTEXT_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(ext)))
+      .sort();
+  } catch {
+    contextCache = { signature: "", text: "", files: [], bytes: 0 };
+    return contextCache;
+  }
+
+  const stamps = [];
+  for (const name of entries) {
+    try {
+      const s = statSync(join(CONTEXT_DIR, name));
+      stamps.push(`${name}:${s.size}:${s.mtimeMs}`);
+    } catch {}
+  }
+  const signature = stamps.join("|");
+  if (signature === contextCache.signature) return contextCache;
+
+  const parts = [];
+  const files = [];
+  let bytes = 0;
+  for (const name of entries) {
+    try {
+      const body = readFileSync(join(CONTEXT_DIR, name), "utf8").trim();
+      if (!body) continue;
+      parts.push(`### ${name}\n\n${body}`);
+      files.push(name);
+      bytes += Buffer.byteLength(body);
+    } catch (err) {
+      log(`could not read context file ${name}: ${err.message}`);
+    }
+  }
+
+  const text = parts.length
+    ? `# Reference material about the user\n\nThe following is background the user has prepared about themselves. ` +
+      `Treat it as authoritative about facts, figures and constraints, and never contradict or embellish it. ` +
+      `Do not quote it verbatim or mention that you were given it — use it to answer as they would.\n\n` +
+      parts.join("\n\n---\n\n")
+    : "";
+
+  contextCache = { signature, text, files, bytes };
+  if (files.length) log(`context loaded: ${files.join(", ")} (${bytes} bytes)`);
+  return contextCache;
+}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -139,6 +209,12 @@ function buildInvocation(messages) {
     source: { type: "base64", media_type: img.mediaType, data: img.data },
   }));
   blocks.push({ type: "text", text: prompt || "(no question provided)" });
+
+  // Reference material goes first: the prompt cache is a prefix match, so
+  // keeping the big stable block ahead of Pluely's own prompt means changing a
+  // response-length setting no longer invalidates 20k tokens of context.
+  const reference = loadContext().text;
+  if (reference) systemParts.unshift(reference);
 
   return {
     system: systemParts.join("\n\n"),
@@ -439,7 +515,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && (path === "/health" || path === "/")) {
-    sendJson(res, 200, { ok: true, service: "pluely-claude-bridge", model: DEFAULT_MODEL });
+    const ctx = loadContext();
+    sendJson(res, 200, {
+      ok: true,
+      service: "pluely-claude-bridge",
+      model: DEFAULT_MODEL,
+      context: { dir: CONTEXT_DIR, files: ctx.files, bytes: ctx.bytes },
+    });
     return;
   }
 
