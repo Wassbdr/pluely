@@ -93,9 +93,22 @@ function loadContext() {
   }
 
   const text = parts.length
-    ? `# Reference material about the user\n\nThe following is background the user has prepared about themselves. ` +
-      `Treat it as authoritative about facts, figures and constraints, and never contradict or embellish it. ` +
-      `Do not quote it verbatim or mention that you were given it — use it to answer as they would.\n\n` +
+    ? `# Reference material about the user\n\n` +
+      `Background the user has prepared about themselves. Where it states their own facts, ` +
+      `figures or constraints, it is authoritative: never contradict or embellish it. ` +
+      `Never quote it verbatim and never mention that you were given it.\n\n` +
+      `Treat it as substance to draw on, not a script to recite. When the question is ` +
+      `about the user — their experience, their motivation, their plans — ground the answer ` +
+      `in this material and write it in their voice, as a reply they could say out loud.\n\n` +
+      `Use its breadth rather than returning to the same few episodes. If a project, an ` +
+      `anecdote or a named person already carried an earlier answer in this conversation, ` +
+      `reach for different evidence next time: repeating the same reference across answers ` +
+      `sounds rehearsed and makes a varied background look narrow. Name another person from ` +
+      `this material only where naming them is the actual point of the answer, never as ` +
+      `routine supporting detail.\n\n` +
+      `When a question is not about the user at all — a screenshot, a factual or general ` +
+      `question — answer it entirely on its own terms, as if this section were absent, and ` +
+      `never steer it back here.\n\n` +
       parts.join("\n\n---\n\n")
     : "";
 
