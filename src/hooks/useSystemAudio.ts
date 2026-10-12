@@ -567,17 +567,20 @@ export function useSystemAudio() {
 
       const isContinuous = !vadConfig.enabled;
 
-      // A new listening session gets its own saved conversation, but the shared
-      // thread is deliberately left alone: stopping and restarting the mic is a
-      // pause in one interview, not the start of a new subject.
-      const conversationId = generateConversationId("sysaudio");
-      setConversation({
-        id: conversationId,
-        title: "",
-        messages: [],
-        createdAt: 0,
-        updatedAt: 0,
-      });
+      // Only an empty thread gets a fresh identity. Stopping and restarting
+      // the mic is a pause in one interview, so an existing thread — and the
+      // saved conversation it writes to — carries straight on.
+      setConversation((prev) =>
+        prev.id && prev.messages.length > 0
+          ? prev
+          : {
+              id: generateConversationId("sysaudio"),
+              title: "",
+              messages: [],
+              createdAt: 0,
+              updatedAt: 0,
+            }
+      );
 
       setCapturing(true);
       setIsPopoverOpen(true);
@@ -622,16 +625,18 @@ export function useSystemAudio() {
       // Stop the audio capture
       await invoke<string>("stop_system_audio_capture");
 
-      // Reset ALL states
+      // Reset the capture states only.
       setCapturing(false);
       setIsProcessing(false);
       setIsAIProcessing(false);
       setIsContinuousMode(false);
       setIsRecordingInContinuousMode(false);
       setRecordingProgress(0);
-      setLastTranscription("");
-      setLastAIResponse("");
       setError("");
+      // The exchange on screen is deliberately kept: stopping the mic pauses
+      // the interview, it does not end it. Clearing it here is what used to
+      // make the whole thread vanish on stop, since the panel only renders
+      // once there is a transcription or a response to show.
       // The panel deliberately stays open: stopping the mic returns to the
       // menu, ready to listen again, rather than dismissing everything.
     } catch (err) {
